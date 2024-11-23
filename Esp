@@ -1,0 +1,132 @@
+local Players = game:GetService("Players")
+local Teams = game:GetService("Teams") -- Ensure Teams exist in your game
+local UserInputService = game:GetService("UserInputService")
+
+local nameTagsVisible = true -- Variable to track if name tags are visible or not
+local highlightsVisible = true -- Variable to track if highlights are visible or not
+local nameTags = {} -- Table to store all the name tags
+local highlights = {} -- Table to store all the highlights
+
+-- Function to apply a Highlight with the team's color (no white outline)
+local function applyTeamHighlight(character, teamColor)
+    if not character then return end
+
+    -- Check if a Highlight already exists; if not, create it
+    local highlight = character:FindFirstChildOfClass("Highlight")
+    if not highlight then
+        highlight = Instance.new("Highlight")
+        highlight.Parent = character
+        table.insert(highlights, highlight) -- Store the highlight for later toggling
+    end
+
+    -- Set the highlight color based on the team
+    if teamColor then
+        highlight.FillColor = teamColor.Color -- Use the BrickColor's Color property
+        -- No white outline
+        highlight.OutlineTransparency = 1 -- Completely remove the outline
+    end
+end
+
+-- Function to add a name tag above the character with team color
+local function addNameTag(character, player)
+    if not character then return end
+
+    -- Check if a name tag already exists
+    local existingNameTag = character:FindFirstChild("NameTag")
+    if existingNameTag then
+        return -- If it exists, don't create a new one
+    end
+
+    -- Create the BillboardGui for the name tag
+    local nameTag = Instance.new("BillboardGui")
+    nameTag.Name = "NameTag"
+    nameTag.Adornee = character:FindFirstChild("Head") -- Attach to the character's head
+    nameTag.Size = UDim2.new(0, 200, 0, 50) -- Adjust size as needed
+    nameTag.StudsOffset = Vector3.new(0, 3, 0) -- Position above the character
+    nameTag.Parent = character
+
+    -- Set AlwaysOnTop to true to see the name tag through walls
+    nameTag.AlwaysOnTop = true
+
+    -- Create the TextLabel for the name
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = player.Name
+    textLabel.TextColor3 = player.TeamColor.Color -- Set the text color to the team color
+    textLabel.TextSize = 16 -- Smaller text size
+    textLabel.TextStrokeTransparency = 0.8 -- Optional text stroke for better readability
+    textLabel.Parent = nameTag
+
+    -- Add to the nameTags table for easy access later
+    table.insert(nameTags, nameTag)
+end
+
+-- Function to handle tracking for a specific player
+local function trackPlayer(player)
+    local function onCharacterAdded(character)
+        -- Get the player's team color
+        local team = player.Team
+        local teamColor = team and team.TeamColor
+
+        -- Apply the Highlight with the team's color
+        applyTeamHighlight(character, teamColor)
+
+        -- Add the name tag
+        addNameTag(character, player)
+    end
+
+    -- Handle the current character if it exists
+    if player.Character then
+        onCharacterAdded(player.Character)
+    end
+
+    -- Apply highlight every time the player's character spawns
+    player.CharacterAdded:Connect(onCharacterAdded)
+
+    -- Update highlight if the player changes teams
+    player:GetPropertyChangedSignal("Team"):Connect(function()
+        if player.Character then
+            local team = player.Team
+            local teamColor = team and team.TeamColor
+            applyTeamHighlight(player.Character, teamColor)
+        end
+    end)
+end
+
+-- Loop through all players and apply highlights and name tags
+for _, player in ipairs(Players:GetPlayers()) do
+    trackPlayer(player)
+end
+
+-- Apply highlights and name tags for new players joining the game
+Players.PlayerAdded:Connect(function(player)
+    trackPlayer(player)
+end)
+
+-- Function to toggle name tags and highlights visibility
+local function toggleVisibility()
+    -- Toggle the visibility state
+    nameTagsVisible = not nameTagsVisible
+    highlightsVisible = not highlightsVisible
+
+    -- Set each name tag's visibility based on the state
+    for _, nameTag in ipairs(nameTags) do
+        nameTag.Enabled = nameTagsVisible
+    end
+
+    -- Set each highlight's visibility based on the state
+    for _, highlight in ipairs(highlights) do
+        highlight.Enabled = highlightsVisible
+    end
+end
+
+-- Detect key press (L) to toggle visibility
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- Check if the "L" key was pressed
+    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.L then
+        toggleVisibility() -- Toggle name tags and highlights visibility
+    end
+end)
